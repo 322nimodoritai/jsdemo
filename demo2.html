@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>排班表 PDF 範例</title>
+<style>
+  body { font-family: Arial; padding: 20px; }
+  .input-section { margin-bottom: 20px; }
+  #nameInput { padding: 5px; }
+  #addBtn { padding: 5px 10px; }
+  #downloadPdfBtn { padding: 5px 10px; margin-left: 10px; }
+
+  .container { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+  .person { 
+    padding: 5px 10px; 
+    color: white; 
+    cursor: grab; 
+    border-radius: 5px; 
+    margin-bottom: 5px; 
+    user-select: none; 
+    display: inline-block; 
+    white-space: nowrap;
+  }
+  table { border-collapse: collapse; width: 100%; table-layout: auto; }
+  th, td { border: 1px solid #ccc; height: 60px; text-align: center; vertical-align: middle; }
+  th:first-child, td:first-child { white-space: nowrap; width: 1%; }
+  th:not(:first-child), td:not(:first-child) { width: calc((100% - 1%) / 7); }
+  .shift { min-height: 50px; background: #f9f9f9; position: relative; }
+</style>
+</head>
+<body>
+
+<div class="input-section">
+  <input type="text" id="nameInput" placeholder="輸入人名">
+  <button id="addBtn">添加</button>
+  <button id="downloadPdfBtn">下載 PDF</button>
+</div>
+
+<div class="container" id="peopleContainer"></div>
+
+<table id="scheduleTable">
+  <tr>
+    <th>星期</th>
+    <th>一</th>
+    <th>二</th>
+    <th>三</th>
+    <th>四</th>
+    <th>五</th>
+    <th>六</th>
+    <th>日</th>
+  </tr>
+  <tr>
+    <td>早班</td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+  </tr>
+  <tr>
+    <td>晚班</td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+    <td class="shift" ondrop="drop(event)" ondragover="allowDrop(event)"></td>
+  </tr>
+</table>
+
+<!-- 引入 html2pdf.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<script>
+const addBtn = document.getElementById('addBtn');
+const nameInput = document.getElementById('nameInput');
+const peopleContainer = document.getElementById('peopleContainer');
+const downloadBtn = document.getElementById('downloadPdfBtn');
+
+const colors = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6','#bcf60c','#fabebe','#008080','#e6beff','#9a6324','#fffac8'];
+const emojis = ['🐶','🐱','🦁','🐯','🐷','🐸','🐵','🐼','🐔','🐧','🐢','🐙','🦄','🐝'];
+
+let usedColors = [];
+let usedEmojis = [];
+let usedNames = [];
+let personCounter = 0;
+
+function getUniqueColor() {
+  for(let c of colors){
+    if(!usedColors.includes(c)){
+      usedColors.push(c);
+      return c;
+    }
+  }
+  return '#000000';
+}
+
+function getUniqueEmoji() {
+  for(let e of emojis){
+    if(!usedEmojis.includes(e)){
+      usedEmojis.push(e);
+      return e;
+    }
+  }
+  return '❓';
+}
+
+function createPersonCard(name, emoji = null, color = null) {
+  const person = document.createElement('div');
+  person.className = 'person';
+  person.id = 'person-' + personCounter++;
+  const assignedEmoji = emoji || getUniqueEmoji();
+  const assignedColor = color || getUniqueColor();
+  person.textContent = assignedEmoji + ' ' + name;
+  person.style.backgroundColor = assignedColor;
+  person.draggable = true;
+
+  person.ondblclick = () => {
+    const parts = person.textContent.split(' ');
+    const nameOnly = parts.slice(1).join(' ');
+    const emojiOnly = parts[0];
+    const colorOnly = person.style.backgroundColor;
+
+    const inList = peopleContainer.contains(person);
+
+    if(person.parentNode) person.parentNode.removeChild(person);
+
+    if(inList){
+      usedNames = usedNames.filter(n => n !== nameOnly);
+      usedColors = usedColors.filter(c => c !== colorOnly);
+      usedEmojis = usedEmojis.filter(e => e !== emojiOnly);
+
+      const shifts = document.querySelectorAll('.shift .person');
+      shifts.forEach(p => {
+        const pParts = p.textContent.split(' ');
+        const pName = pParts.slice(1).join(' ');
+        if(pName === nameOnly) p.parentNode.removeChild(p);
+      });
+    }
+  };
+
+  person.ondragstart = (ev) => {
+    ev.dataTransfer.setData("text/plain", person.id);
+  };
+
+  return person;
+}
+
+addBtn.addEventListener('click', () => {
+  const name = nameInput.value.trim();
+  if(!name) return;
+  if(usedNames.includes(name)){
+    alert("這個人名已經存在！");
+    return;
+  }
+  usedNames.push(name);
+  const person = createPersonCard(name);
+  peopleContainer.appendChild(person);
+  nameInput.value = '';
+});
+
+function allowDrop(ev) { ev.preventDefault(); }
+
+function drop(ev) {
+  ev.preventDefault();
+  if (ev.target.firstChild) return;
+
+  const personId = ev.dataTransfer.getData("text/plain");
+  const person = document.getElementById(personId);
+  if (!person) return;
+
+  if (person.parentNode === peopleContainer) {
+    const parts = person.textContent.split(' ');
+    const newPerson = createPersonCard(parts.slice(1).join(' '), parts[0], person.style.backgroundColor);
+    ev.target.appendChild(newPerson);
+  } else {
+    if (person.parentNode) person.parentNode.removeChild(person);
+    ev.target.appendChild(person);
+  }
+}
+
+// ===== 下載 PDF =====
+downloadBtn.addEventListener('click', () => {
+  const element = document.getElementById('scheduleTable'); // 整個班表
+  const opt = {
+    margin: 0.5,
+    filename: '排班表.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
+  };
+  html2pdf().set(opt).from(element).save();
+});
+</script>
+
+</body>
+</html>
