@@ -2,13 +2,12 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>排班表 PDF 範例</title>
+<title>排班表 + PDF + 圓餅圖</title>
 <style>
   body { font-family: Arial; padding: 20px; }
   .input-section { margin-bottom: 20px; }
   #nameInput { padding: 5px; }
-  #addBtn { padding: 5px 10px; }
-  #downloadPdfBtn { padding: 5px 10px; margin-left: 10px; }
+  #addBtn, #downloadPdfBtn { padding: 5px 10px; margin-left: 5px; }
 
   .container { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
   .person { 
@@ -21,7 +20,7 @@
     display: inline-block; 
     white-space: nowrap;
   }
-  table { border-collapse: collapse; width: 100%; table-layout: auto; }
+  table { border-collapse: collapse; width: 100%; table-layout: auto; margin-bottom: 20px; }
   th, td { border: 1px solid #ccc; height: 60px; text-align: center; vertical-align: middle; }
   th:first-child, td:first-child { white-space: nowrap; width: 1%; }
   th:not(:first-child), td:not(:first-child) { width: calc((100% - 1%) / 7); }
@@ -71,8 +70,12 @@
   </tr>
 </table>
 
-<!-- 引入 html2pdf.js -->
+<h3>排班統計</h3>
+<canvas id="pieChart" width="300" height="300"></canvas>
+
+<!-- 引入 js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
 const addBtn = document.getElementById('addBtn');
@@ -89,22 +92,11 @@ let usedNames = [];
 let personCounter = 0;
 
 function getUniqueColor() {
-  for(let c of colors){
-    if(!usedColors.includes(c)){
-      usedColors.push(c);
-      return c;
-    }
-  }
+  for(let c of colors){ if(!usedColors.includes(c)){ usedColors.push(c); return c; } }
   return '#000000';
 }
-
 function getUniqueEmoji() {
-  for(let e of emojis){
-    if(!usedEmojis.includes(e)){
-      usedEmojis.push(e);
-      return e;
-    }
-  }
+  for(let e of emojis){ if(!usedEmojis.includes(e)){ usedEmojis.push(e); return e; } }
   return '❓';
 }
 
@@ -140,6 +132,7 @@ function createPersonCard(name, emoji = null, color = null) {
         if(pName === nameOnly) p.parentNode.removeChild(p);
       });
     }
+    updatePieChart();
   };
 
   person.ondragstart = (ev) => {
@@ -160,6 +153,7 @@ addBtn.addEventListener('click', () => {
   const person = createPersonCard(name);
   peopleContainer.appendChild(person);
   nameInput.value = '';
+  updatePieChart();
 });
 
 function allowDrop(ev) { ev.preventDefault(); }
@@ -180,11 +174,12 @@ function drop(ev) {
     if (person.parentNode) person.parentNode.removeChild(person);
     ev.target.appendChild(person);
   }
+  updatePieChart();
 }
 
 // ===== 下載 PDF =====
 downloadBtn.addEventListener('click', () => {
-  const element = document.getElementById('scheduleTable'); // 整個班表
+  const element = document.getElementById('scheduleTable'); 
   const opt = {
     margin: 0.5,
     filename: '排班表.pdf',
@@ -194,6 +189,35 @@ downloadBtn.addEventListener('click', () => {
   };
   html2pdf().set(opt).from(element).save();
 });
+
+// ===== 圓餅圖 =====
+const ctx = document.getElementById('pieChart').getContext('2d');
+const pieChart = new Chart(ctx, {
+    type: 'pie',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
+    options: { responsive: false, plugins: { legend: { position: 'right' } } }
+});
+
+function updatePieChart() {
+  const allShifts = document.querySelectorAll('.shift .person');
+  const countMap = {};
+  const colorMap = {};
+  allShifts.forEach(p => {
+    const parts = p.textContent.split(' ');
+    const name = parts.slice(1).join(' ');
+    countMap[name] = (countMap[name] || 0) + 1;
+    colorMap[name] = p.style.backgroundColor;
+  });
+
+  const labels = Object.keys(countMap);
+  const data = labels.map(l => countMap[l]);
+  const colors = labels.map(l => colorMap[l]);
+
+  pieChart.data.labels = labels;
+  pieChart.data.datasets[0].data = data;
+  pieChart.data.datasets[0].backgroundColor = colors;
+  pieChart.update();
+}
 </script>
 
 </body>
