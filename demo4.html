@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>桌球比賽記分板</title>
+<style>
+  body { font-family: Arial; padding: 20px; background-color: #f5f5f5; }
+  .header { text-align: center; margin-bottom: 30px; }
+  .header h1 { color: #2c3e50; margin: 0; }
+  .input-section { 
+    background: white; 
+    padding: 20px; 
+    border-radius: 10px; 
+    margin-bottom: 20px; 
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+  #teamAInput, #teamBInput { padding: 8px; margin: 5px; border: 2px solid #ddd; border-radius: 5px; }
+  #setTeamsBtn, #resetBtn, #downloadPdfBtn { 
+    padding: 8px 15px; 
+    margin: 5px; 
+    border: none; 
+    border-radius: 5px; 
+    cursor: pointer; 
+    font-weight: bold;
+  }
+  #setTeamsBtn { background: #3498db; color: white; }
+  #resetBtn { background: #e74c3c; color: white; }
+  #downloadPdfBtn { background: #27ae60; color: white; }
+
+  .scoreboard {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+
+  table { 
+    border-collapse: collapse; 
+    width: 100%; 
+    table-layout: fixed;
+  }
+  
+  th, td { 
+    border: 2px solid #34495e; 
+    height: 60px; 
+    text-align: center; 
+    vertical-align: middle; 
+    font-weight: bold;
+  }
+  
+  th {
+    background: #34495e;
+    color: white;
+    font-size: 14px;
+  }
+  
+  th:first-child { width: 120px; }
+  th:not(:first-child) { width: calc((100% - 120px) / 12); }
+  
+  .team-row {
+    height: 80px;
+  }
+  
+  .team-name {
+    background: #2c3e50;
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+  }
+  
+  .score-cell {
+    background: #ecf0f1;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+  }
+  
+  .score-cell:hover {
+    background: #d5dbdb;
+  }
+  
+  .score-cell.scored {
+    background: #2ecc71;
+    color: white;
+  }
+  
+  .score-cell.scored.deuce {
+    background: #f1c40f !important;
+    color: #000 !important;
+  }
+  
+  .score-cell.scored.match-point {
+    background: #e74c3c !important;
+    color: white !important;
+  }
+  
+  .score-cell.scored::after {
+    content: "✓";
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  .color-buttons {
+    display: flex;
+    gap: 3px;
+    margin-top: 3px;
+  }
+  
+  .color-btn {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #ddd;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .color-btn:hover {
+    border-color: #000;
+    transform: scale(1.1);
+  }
+  
+  .color-btn.selected {
+    border-color: #000;
+    border-width: 3px;
+    transform: scale(1.1);
+  }
+
+  .results-container { 
+    display: flex; 
+    gap: 30px; 
+    align-items: flex-start; 
+  }
+  
+  .result-section, .chart-section { 
+    flex: 1;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+  
+  .result-display {
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+    padding: 20px;
+    border-radius: 10px;
+    margin-top: 10px;
+  }
+  
+  .result-tie {
+    background: #f39c12;
+    color: white;
+  }
+  
+  .result-leading {
+    background: #3498db;
+    color: white;
+  }
+  
+  .result-win {
+    background: #e74c3c;
+    color: white;
+    animation: pulse 2s infinite;
+  }
+  
+  .result-deuce {
+    background: #9b59b6;
+    color: white;
+  }
+  
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🏓 桌球比賽記分板</h1>
+</div>
+
+<div class="input-section">
+  <div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
+    <div>
+      <input type="text" id="teamAInput" placeholder="輸入隊伍A名稱" maxlength="10">
+      <div style="margin-top: 5px;">
+        <span style="font-size: 12px; color: #666;">隊伍A顏色：</span>
+        <div class="color-buttons" id="teamAColors">
+          <button class="color-btn" data-color="#e74c3c" style="background: #e74c3c;" onclick="setTeamColor('A', '#e74c3c')"></button>
+          <button class="color-btn" data-color="#f39c12" style="background: #f39c12;" onclick="setTeamColor('A', '#f39c12')"></button>
+          <button class="color-btn" data-color="#f1c40f" style="background: #f1c40f;" onclick="setTeamColor('A', '#f1c40f')"></button>
+          <button class="color-btn" data-color="#27ae60" style="background: #27ae60;" onclick="setTeamColor('A', '#27ae60')"></button>
+          <button class="color-btn" data-color="#3498db" style="background: #3498db;" onclick="setTeamColor('A', '#3498db')"></button>
+          <button class="color-btn" data-color="#e91e63" style="background: #e91e63;" onclick="setTeamColor('A', '#e91e63')"></button>
+          <button class="color-btn" data-color="#9b59b6" style="background: #9b59b6;" onclick="setTeamColor('A', '#9b59b6')"></button>
+        </div>
+      </div>
+    </div>
+    
+    <div>
+      <input type="text" id="teamBInput" placeholder="輸入隊伍B名稱" maxlength="10">
+      <div style="margin-top: 5px;">
+        <span style="font-size: 12px; color: #666;">隊伍B顏色：</span>
+        <div class="color-buttons" id="teamBColors">
+          <button class="color-btn" data-color="#e74c3c" style="background: #e74c3c;" onclick="setTeamColor('B', '#e74c3c')"></button>
+          <button class="color-btn" data-color="#f39c12" style="background: #f39c12;" onclick="setTeamColor('B', '#f39c12')"></button>
+          <button class="color-btn" data-color="#f1c40f" style="background: #f1c40f;" onclick="setTeamColor('B', '#f1c40f')"></button>
+          <button class="color-btn" data-color="#27ae60" style="background: #27ae60;" onclick="setTeamColor('B', '#27ae60')"></button>
+          <button class="color-btn" data-color="#3498db" style="background: #3498db;" onclick="setTeamColor('B', '#3498db')"></button>
+          <button class="color-btn" data-color="#e91e63" style="background: #e91e63;" onclick="setTeamColor('B', '#e91e63')"></button>
+          <button class="color-btn" data-color="#9b59b6" style="background: #9b59b6;" onclick="setTeamColor('B', '#9b59b6')"></button>
+        </div>
+      </div>
+    </div>
+    
+    <div>
+      <button id="setTeamsBtn">設定隊伍</button>
+      <button id="resetBtn">重置比賽</button>
+      <button id="downloadPdfBtn">下載 PDF</button>
+    </div>
+  </div>
+</div>
+
+<div class="scoreboard">
+  <table id="scoreTable">
+    <thead>
+      <tr>
+        <th>得分</th>
+        <th>1</th>
+        <th>2</th>
+        <th>3</th>
+        <th>4</th>
+        <th>5</th>
+        <th>6</th>
+        <th>7</th>
+        <th>8</th>
+        <th>9</th>
+        <th>10</th>
+        <th>11</th>
+        <th>12</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="team-row">
+        <td class="team-name" id="teamAName">隊伍A</td>
+        <td class="score-cell" onclick="toggleScore(this, 'A', 1)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'A', 2)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'A', 3)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'A', 4)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'A', 5)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'A', 6)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'A', 7)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'A', 8)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'A', 9)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'A', 10)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'A', 11)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'A', 12)"></td>
+      </tr>
+      <tr class="team-row">
+        <td class="team-name" id="teamBName">隊伍B</td>
+        <td class="score-cell" onclick="toggleScore(this, 'B', 1)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'B', 2)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'B', 3)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'B', 4)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'B', 5)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'B', 6)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'B', 7)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'B', 8)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'B', 9)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'B', 10)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'B', 11)"></td>
+        <td class="score-cell" onclick="toggleScore(this, 'B', 12)"></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="results-container">
+  <div class="result-section">
+    <h3>🏆 比賽結果</h3>
+    <div id="resultDisplay" class="result-display result-tie">
+      尚未開始比賽
+    </div>
+  </div>
+  <div class="chart-section">
+    <h3>📊 得分統計</h3>
+    <canvas id="barChart" width="400" height="300"></canvas>
+  </div>
+</div>
+
+<!-- 引入 js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+const setTeamsBtn = document.getElementById('setTeamsBtn');
+const resetBtn = document.getElementById('resetBtn');
+const downloadBtn = document.getElementById('downloadPdfBtn');
+const teamAInput = document.getElementById('teamAInput');
+const teamBInput = document.getElementById('teamBInput');
+const teamAName = document.getElementById('teamAName');
+const teamBName = document.getElementById('teamBName');
+const resultDisplay = document.getElementById('resultDisplay');
+
+let teamAScore = 0;
+let teamBScore = 0;
+let gameEnded = false;
+let teamAColor = '#3498db';
+let teamBColor = '#e74c3c';
+
+// 檢查比賽是否結束
+function checkGameEnd() {
+  return ((teamAScore >= 11 && teamAScore - teamBScore >= 2) || 
+          (teamBScore >= 11 && teamBScore - teamAScore >= 2) || 
+          teamAScore >= 12 || teamBScore >= 12);
+}
+
+// 設定隊伍顏色
+function setTeamColor(team, color) {
+  if (team === 'A') {
+    teamAColor = color;
+    // 更新顏色按鈕選中狀態
+    document.querySelectorAll('#teamAColors .color-btn').forEach(btn => {
+      btn.classList.toggle('selected', btn.dataset.color === color);
+    });
+  } else {
+    teamBColor = color;
+    // 更新顏色按鈕選中狀態
+    document.querySelectorAll('#teamBColors .color-btn').forEach(btn => {
+      btn.classList.toggle('selected', btn.dataset.color === color);
+    });
+  }
+  
+  // 更新已經得分的格子顏色
+  updateScoreCellColors();
+  updateChart();
+}
+
+// 更新記分板格子顏色
+function updateScoreCellColors() {
+  const teamARow = document.querySelector('#scoreTable tbody tr:first-child');
+  const teamBRow = document.querySelector('#scoreTable tbody tr:last-child');
+  
+  // 更新隊伍A的格子
+  teamARow.querySelectorAll('.score-cell.scored').forEach((cell, index) => {
+    const score = index + 1;
+    if (teamAScore >= 10 && teamBScore >= 10) {
+      if (score === 10) {
+        cell.className = 'score-cell scored deuce';
+      } else if (score >= 11) {
+        cell.className = 'score-cell scored match-point';
+      } else {
+        cell.style.backgroundColor = teamAColor;
+      }
+    } else {
+      cell.style.backgroundColor = teamAColor;
+      cell.className = 'score-cell scored';
+    }
+  });
+  
+  // 更新隊伍B的格子
+  teamBRow.querySelectorAll('.score-cell.scored').forEach((cell, index) => {
+    const score = index + 1;
+    if (teamAScore >= 10 && teamBScore >= 10) {
+      if (score === 10) {
+        cell.className = 'score-cell scored deuce';
+      } else if (score >= 11) {
+        cell.className = 'score-cell scored match-point';
+      } else {
+        cell.style.backgroundColor = teamBColor;
+      }
+    } else {
+      cell.style.backgroundColor = teamBColor;
+      cell.className = 'score-cell scored';
+    }
+  });
+}
+
+// 設定隊伍名稱
+setTeamsBtn.addEventListener('click', () => {
+  const nameA = teamAInput.value.trim();
+  const nameB = teamBInput.value.trim();
+  
+  if (nameA) teamAName.textContent = nameA;
+  if (nameB) teamBName.textContent = nameB;
+  
+  teamAInput.value = '';
+  teamBInput.value = '';
+  
+  updateResult();
+  updateChart();
+});
+
+// 重置比賽
+resetBtn.addEventListener('click', function() {
+  console.log('重置按鈕被點擊');
+  
+  console.log('開始重置');
+  
+  // 重置變數
+  teamAScore = 0;
+  teamBScore = 0;
+  gameEnded = false;
+  teamAColor = '#3498db';
+  teamBColor = '#e74c3c';
+  
+  // 重置隊伍名稱為預設值
+  teamAName.textContent = '隊伍A';
+  teamBName.textContent = '隊伍B';
+  
+  // 重置顏色按鈕選中狀態
+  document.querySelectorAll('.color-btn').forEach(btn => {
+    btn.classList.remove('selected');
+  });
+  document.querySelector('#teamAColors .color-btn[data-color="#3498db"]').classList.add('selected');
+  document.querySelector('#teamBColors .color-btn[data-color="#e74c3c"]').classList.add('selected');
+  
+  // 清除所有勾選
+  const scoreCells = document.querySelectorAll('.score-cell');
+  console.log('找到格子數量:', scoreCells.length);
+  
+  scoreCells.forEach(function(cell, index) {
+    console.log('重置格子', index, '原本有scored類別:', cell.classList.contains('scored'));
+    
+    // 移除所有相關類別
+    cell.classList.remove('scored', 'deuce', 'match-point');
+    
+    // 重置為原本的樣式 - 移除inline style讓CSS生效
+    cell.style.backgroundColor = '';
+    cell.style.color = '';
+    
+    // 清空內容
+    cell.innerHTML = '';
+    
+    console.log('重置後有scored類別:', cell.classList.contains('scored'));
+  });
+  
+  // 重置結果顯示
+  resultDisplay.textContent = '尚未開始比賽';
+  resultDisplay.className = 'result-display result-tie';
+  
+  updateResult();
+  updateChart();
+  console.log('重置完成，teamAScore:', teamAScore, 'teamBScore:', teamBScore);
+});
+
+// 切換得分
+function toggleScore(cell, team, score) {
+  const isScored = cell.classList.contains('scored');
+  
+  if (isScored) {
+    // 取消得分 - 只能取消最高分
+    if (!canUnscore(team, score)) {
+      alert('只能取消目前的最高得分！');
+      return;
+    }
+    
+    cell.classList.remove('scored');
+    cell.classList.remove('deuce');
+    cell.classList.remove('match-point');
+    cell.style.backgroundColor = '';
+    
+    if (team === 'A') teamAScore--;
+    else teamBScore--;
+    
+    // 重新檢查比賽狀態
+    gameEnded = checkGameEnd();
+  } else {
+    // 比賽結束後不能新增得分，只能取消
+    if (gameEnded) {
+      alert('比賽已結束！只能取消得分或重置比賽。');
+      return;
+    }
+    
+    // 檢查是否按順序得分
+    if (!canScore(team, score)) {
+      alert('請按順序得分！');
+      return;
+    }
+    
+    // 得分
+    cell.classList.add('scored');
+    
+    // 設定顏色
+    const teamColor = team === 'A' ? teamAColor : teamBColor;
+    
+    // 檢查是否是10平或11分以上的情況
+    if ((teamAScore >= 9 && teamBScore >= 9) || (teamAScore >= 10 || teamBScore >= 10)) {
+      if (score === 10 && ((team === 'A' && teamBScore >= 10) || (team === 'B' && teamAScore >= 10))) {
+        cell.classList.add('deuce');
+      } else if (score >= 11) {
+        cell.classList.add('match-point');
+      } else {
+        cell.style.backgroundColor = teamColor;
+      }
+    } else {
+      cell.style.backgroundColor = teamColor;
+    }
+    
+    if (team === 'A') teamAScore++;
+    else teamBScore++;
+    
+    // 檢查比賽是否結束
+    gameEnded = checkGameEnd();
+  }
+  
+  // 更新所有格子的顏色狀態
+  updateScoreCellColors();
+  updateResult();
+  updateChart();
+}
+
+// 檢查是否可以得分（必須按順序）
+function canScore(team, score) {
+  const currentScore = team === 'A' ? teamAScore : teamBScore;
+  return score === currentScore + 1;
+}
+
+// 檢查是否可以取消得分（只能取消最高分）
+function canUnscore(team, score) {
+  const currentScore = team === 'A' ? teamAScore : teamBScore;
+  return score === currentScore;
+}
+
+// 更新比賽結果
+function updateResult() {
+  const teamA = teamAName.textContent;
+  const teamB = teamBName.textContent;
+  
+  // 清除所有樣式類別
+  resultDisplay.className = 'result-display';
+  
+  // 判斷比賽結果
+  if (teamAScore === 0 && teamBScore === 0) {
+    resultDisplay.textContent = '尚未開始比賽';
+    resultDisplay.classList.add('result-tie');
+  }
+  // 檢查是否有人獲勝
+  else if ((teamAScore >= 11 && teamAScore - teamBScore >= 2) || 
+           (teamAScore >= 12)) {
+    resultDisplay.textContent = `${teamA} 獲勝 比賽結束`;
+    resultDisplay.classList.add('result-win');
+    gameEnded = true;
+  }
+  else if ((teamBScore >= 11 && teamBScore - teamAScore >= 2) || 
+           (teamBScore >= 12)) {
+    resultDisplay.textContent = `${teamB} 獲勝 比賽結束`;
+    resultDisplay.classList.add('result-win');
+    gameEnded = true;
+  }
+  // 雙方都達到10分以上
+  else if (teamAScore >= 10 && teamBScore >= 10) {
+    if (teamAScore === teamBScore) {
+      if (teamAScore === 10 && teamBScore === 10) {
+        resultDisplay.textContent = '暫時平手 再爭兩分';
+      } else {
+        resultDisplay.textContent = '暫時平手 再爭一分';
+      }
+      resultDisplay.classList.add('result-deuce');
+    } else if (teamAScore > teamBScore) {
+      resultDisplay.textContent = `${teamA} 暫時領先`;
+      resultDisplay.classList.add('result-leading');
+    } else {
+      resultDisplay.textContent = `${teamB} 暫時領先`;
+      resultDisplay.classList.add('result-leading');
+    }
+  }
+  // 尚未達到10分
+  else {
+    if (teamAScore === teamBScore) {
+      resultDisplay.textContent = '暫時平手';
+      resultDisplay.classList.add('result-tie');
+    } else if (teamAScore > teamBScore) {
+      resultDisplay.textContent = `${teamA} 暫時領先`;
+      resultDisplay.classList.add('result-leading');
+    } else {
+      resultDisplay.textContent = `${teamB} 暫時領先`;
+      resultDisplay.classList.add('result-leading');
+    }
+  }
+}
+
+// 長條圖
+const barCtx = document.getElementById('barChart').getContext('2d');
+const barChart = new Chart(barCtx, {
+    type: 'bar',
+    data: { 
+        labels: [], 
+        datasets: [{ 
+            label: '得分',
+            data: [], 
+            backgroundColor: []
+        }] 
+    },
+    options: { 
+        indexAxis: 'y',
+        responsive: false, 
+        scales: {
+            x: {
+                beginAtZero: true,
+                max: 12,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        },
+        plugins: { 
+            legend: { 
+                display: false 
+            } 
+        }
+    }
+});
+
+// 更新圖表
+function updateChart() {
+  const teamA = teamAName.textContent;
+  const teamB = teamBName.textContent;
+  
+  const labels = [teamA, teamB];
+  const data = [teamAScore, teamBScore];
+  const colors = [teamAColor, teamBColor];
+  
+  barChart.data.labels = labels;
+  barChart.data.datasets[0].data = data;
+  barChart.data.datasets[0].backgroundColor = colors;
+  barChart.update();
+}
+
+// PDF 下載
+downloadBtn.addEventListener('click', () => {
+  // 建立要匯出的內容區域
+  const exportContent = document.createElement('div');
+  exportContent.style.padding = '20px';
+  exportContent.style.backgroundColor = 'white';
+  
+  // 標題
+  const title = document.createElement('h1');
+  title.textContent = '🏓 桌球比賽記分板';
+  title.style.textAlign = 'center';
+  title.style.marginBottom = '30px';
+  title.style.color = '#2c3e50';
+  exportContent.appendChild(title);
+  
+  // 記分板
+  const scoreboardClone = document.querySelector('.scoreboard').cloneNode(true);
+  exportContent.appendChild(scoreboardClone);
+  
+  // 比賽結果區域
+  const resultSection = document.createElement('div');
+  resultSection.style.marginTop = '30px';
+  resultSection.style.textAlign = 'center';
+  
+  const resultTitle = document.createElement('h3');
+  resultTitle.textContent = '🏆 比賽結果';
+  resultTitle.style.marginBottom = '15px';
+  resultSection.appendChild(resultTitle);
+  
+  const resultClone = document.getElementById('resultDisplay').cloneNode(true);
+  resultClone.style.display = 'inline-block';
+  resultClone.style.minWidth = '300px';
+  resultSection.appendChild(resultClone);
+  
+  exportContent.appendChild(resultSection);
+  
+  // 得分統計區域
+  const chartSection = document.createElement('div');
+  chartSection.style.marginTop = '30px';
+  chartSection.style.textAlign = 'center';
+  
+  const chartTitle = document.createElement('h3');
+  chartTitle.textContent = '📊 得分統計';
+  chartTitle.style.marginBottom = '15px';
+  chartSection.appendChild(chartTitle);
+  
+  // 建立簡單的得分統計表格
+  const statsTable = document.createElement('table');
+  statsTable.style.margin = '0 auto';
+  statsTable.style.borderCollapse = 'collapse';
+  statsTable.style.fontSize = '18px';
+  
+  const statsRow = document.createElement('tr');
+  
+  const teamACell = document.createElement('td');
+  teamACell.textContent = teamAName.textContent;
+  teamACell.style.padding = '15px 30px';
+  teamACell.style.border = '2px solid #34495e';
+  teamACell.style.backgroundColor = teamAColor;
+  teamACell.style.color = 'white';
+  teamACell.style.fontWeight = 'bold';
+  
+  const scoreACell = document.createElement('td');
+  scoreACell.textContent = teamAScore;
+  scoreACell.style.padding = '15px 30px';
+  scoreACell.style.border = '2px solid #34495e';
+  scoreACell.style.textAlign = 'center';
+  scoreACell.style.fontSize = '24px';
+  scoreACell.style.fontWeight = 'bold';
+  
+  const vsCell = document.createElement('td');
+  vsCell.textContent = 'VS';
+  vsCell.style.padding = '15px 20px';
+  vsCell.style.border = '2px solid #34495e';
+  vsCell.style.textAlign = 'center';
+  vsCell.style.fontWeight = 'bold';
+  vsCell.style.backgroundColor = '#ecf0f1';
+  
+  const scoreBCell = document.createElement('td');
+  scoreBCell.textContent = teamBScore;
+  scoreBCell.style.padding = '15px 30px';
+  scoreBCell.style.border = '2px solid #34495e';
+  scoreBCell.style.textAlign = 'center';
+  scoreBCell.style.fontSize = '24px';
+  scoreBCell.style.fontWeight = 'bold';
+  
+  const teamBCell = document.createElement('td');
+  teamBCell.textContent = teamBName.textContent;
+  teamBCell.style.padding = '15px 30px';
+  teamBCell.style.border = '2px solid #34495e';
+  teamBCell.style.backgroundColor = teamBColor;
+  teamBCell.style.color = 'white';
+  teamBCell.style.fontWeight = 'bold';
+  
+  statsRow.appendChild(teamACell);
+  statsRow.appendChild(scoreACell);
+  statsRow.appendChild(vsCell);
+  statsRow.appendChild(scoreBCell);
+  statsRow.appendChild(teamBCell);
+  statsTable.appendChild(statsRow);
+  
+  chartSection.appendChild(statsTable);
+  exportContent.appendChild(chartSection);
+  
+  // 暫時加到body中
+  document.body.appendChild(exportContent);
+  
+  const opt = {
+    margin: 0.5,
+    filename: '桌球比賽記分板.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
+  };
+  
+  html2pdf().set(opt).from(exportContent).save().then(() => {
+    // PDF生成後移除臨時元素
+    document.body.removeChild(exportContent);
+  });
+});
+
+// 初始化
+document.addEventListener('DOMContentLoaded', function() {
+  // 設定預設顏色選中狀態
+  document.querySelector('#teamAColors .color-btn[data-color="#3498db"]').classList.add('selected');
+  document.querySelector('#teamBColors .color-btn[data-color="#e74c3c"]').classList.add('selected');
+  
+  updateResult();
+  updateChart();
+  console.log('頁面初始化完成');
+});
+</script>
+
+</body>
+</html>
